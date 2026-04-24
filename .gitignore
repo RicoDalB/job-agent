@@ -21,3 +21,8 @@ data/
 .DS_Store
 .vscode/
 .idea/
+
+# CV
+cv.pdf
+
+job-agent-494310-96e9c41007df.json

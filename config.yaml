@@ -1,0 +1,170 @@
+profile:
+  name: "Riccardo Dal Bianco"
+  current_level: "Master student in Artificial Intelligence"
+  target_seniority:
+    - "internship"
+    - "junior"
+    - "entry level"
+    - "Thesis"
+    - "Master Thesis"
+    - "stage"
+    - "tirocinio"
+
+search:
+  roles:
+    - "AI Engineer"
+    - "Machine Learning Engineer"
+    - "Data Engineer"
+#    - "Software Engineer"
+#    - "Generative AI"
+#    - "stage machine learning"
+#    - "stage artificial intelligence"
+#    - "stage data engineer"
+#    - "stage data scientist"
+#    - "stage sviluppatore python"
+#    - "stage sviluppatore AI"
+#    - "tirocinio machine learning"
+#    - "tirocinio data scientist"
+#    - "tirocinio data engineer"
+#    - "tirocinio sviluppatore software"
+#    - "internship machine learning"
+#    - "internship data engineer"
+#    - "internship software engineer"
+#    - "junior AI engineer"
+#    - "junior machine learning engineer"
+
+
+  locations:
+    - "Padova"
+#    - "Verona"
+#    - "Vicienza"
+#    - "Treviso"
+#    - "Venezia"
+    
+  jobspy_sites:
+    - "indeed"
+    - "linkedin"
+
+  country_indeed: "Italy"
+  results_per_source: 10
+  hours_old: 24
+  distance: 50
+  linkedin_fetch_description: false
+  verbose: 1
+  delay_seconds: 2
+
+preferences:
+  must_have_skills:
+    - "Python"
+    - "SQL"
+    - "Machine Learning"
+
+  preferred_stack:
+    - "PyTorch"
+    - "Scikit-learn"
+    - "Pandas"
+    - "NumPy"
+    - "FastAPI"
+    - "Docker"
+    - "Git"
+    - "Linux"
+
+  nice_to_have:
+    - "LLM"
+    - "RAG"
+    - "NLP"
+    - "MLOps"
+    - "Spark"
+    - "Airflow"
+    - "GCP"
+    - "Azure"
+    - "Kubernetes"
+
+  exclusions:
+    - "senior"
+    - "staff engineer"
+    - "principal engineer"
+    - "lead engineer"
+    - "manager"
+    - "5+ years"
+    - "7+ years"
+    - "10+ years"
+
+remotive:
+  enabled: true
+  search_terms:
+    - "python"
+    - "machine learning"
+    - "data engineer"
+    - "software engineer"
+    - "ai engineer"
+  limit_per_search: 20
+  delay_seconds: 3
+
+scoring:
+  strong_match_threshold: 75
+  partial_match_threshold: 50
+
+paths:
+  cv_path: "cv.pdf"
+  output_dir: "data"
+
+
+sheets:
+  worksheet_name: "Jobs"
+  view_worksheet_name: "Jobs_View"
+
+
+ai_ranking:
+  enabled: true
+  model: "llama-3.3-70b-versatile"
+  batch_size: 10
+  max_jobs_to_ai_rank: null
+  max_description_chars: 250
+  max_output_tokens: 1200
+  delay_seconds: 1
+  max_jobs_to_ai_rank: 20
+
+local_ranking:
+  enabled: true
+
+  internship_terms:
+    - "stage"
+    - "tirocinio"
+    - "stagista"
+    - "internship"
+    - "intern"
+    - "graduate"
+    - "entry level"
+    - "junior"
+    - "apprendistato"
+
+  target_role_terms:
+    - "ai"
+    - "artificial intelligence"
+    - "machine learning"
+    - "ml"
+    - "data engineer"
+    - "data scientist"
+    - "software engineer"
+    - "sviluppatore"
+    - "sviluppatore ai"
+    - "sviluppatore python"
+    - "python developer"
+    - "backend developer"
+
+  bad_seniority_terms:
+    - "senior"
+    - "lead"
+    - "staff"
+    - "principal"
+    - "manager"
+    - "responsabile"
+    - "head of"
+    - "director"
+    - "5+ years"
+    - "7+ years"
+    - "10+ years"
+    - "5 anni"
+    - "7 anni"
+    - "10 anni"

@@ -6,6 +6,6 @@ pdfplumber
 groq
 gspread
 google-auth
-python-jobspy
 python-dotenv
 tenacity
+python-jobspy

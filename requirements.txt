@@ -1,0 +1,11 @@
+pandas
+pyyaml
+requests
+beautifulsoup4
+pdfplumber
+groq
+gspread
+google-auth
+python-jobspy
+python-dotenv
+tenacity

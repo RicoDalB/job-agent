@@ -17,18 +17,18 @@ search:
     - "Data Engineer"
 #    - "Software Engineer"
 #    - "Generative AI"
-#    - "stage machine learning"
-#    - "stage artificial intelligence"
-#    - "stage data engineer"
+    - "stage machine learning"
+    - "stage artificial intelligence"
+    - "stage data engineer"
 #    - "stage data scientist"
 #    - "stage sviluppatore python"
 #    - "stage sviluppatore AI"
 #    - "tirocinio machine learning"
 #    - "tirocinio data scientist"
-#    - "tirocinio data engineer"
+    - "tirocinio data engineer"
 #    - "tirocinio sviluppatore software"
-#    - "internship machine learning"
-#    - "internship data engineer"
+    - "internship machine learning"
+    - "internship data engineer"
 #    - "internship software engineer"
 #    - "junior AI engineer"
 #    - "junior machine learning engineer"
@@ -36,17 +36,17 @@ search:
 
   locations:
     - "Padova"
-#    - "Verona"
+    - "Verona"
 #    - "Vicienza"
-#    - "Treviso"
-#    - "Venezia"
+    - "Treviso"
+    - "Venezia"
     
   jobspy_sites:
     - "indeed"
     - "linkedin"
 
   country_indeed: "Italy"
-  results_per_source: 10
+  results_per_source: 15
   hours_old: 24
   distance: 50
   linkedin_fetch_description: false
@@ -123,7 +123,7 @@ ai_ranking:
   max_description_chars: 250
   max_output_tokens: 1200
   delay_seconds: 1
-  max_jobs_to_ai_rank: 20
+  max_jobs_to_ai_rank: 60
 
 local_ranking:
   enabled: true

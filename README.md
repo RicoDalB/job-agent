@@ -1,79 +1,140 @@
 # Job Agent
 
-`job-agent` is a Python pipeline that searches for entry-level AI, machine learning, data, and software roles, cleans the results, ranks them, and publishes the best opportunities to Google Sheets.
+`job-agent` is an automated Python pipeline that collects fresh job postings, cleans and deduplicates them, ranks them against a candidate profile, and publishes the results to Google Sheets.
 
-The current implementation is designed around one practical goal: help a Master's student in AI quickly find internships, junior roles, and thesis-friendly opportunities without manually checking multiple job boards every day.
+The repository is built around a practical use case: helping a Master's student in Artificial Intelligence find internships, junior roles, thesis opportunities, and entry-level AI/data/software jobs without manually checking multiple job boards every day.
+
+## Why This Project Exists
+
+Job searching is repetitive and noisy:
+
+- the same job appears on multiple platforms
+- many postings are too senior
+- many titles look relevant but are not
+- reviewing every listing manually takes too much time
+
+This project reduces that work by turning job search into a small data pipeline:
+
+1. collect jobs from multiple sources
+2. normalize them into one schema
+3. remove duplicates and weak rows
+4. score them using explicit ranking rules
+5. optionally re-rank the best ones with Groq
+6. export everything as CSV
+7. publish a clean dashboard to Google Sheets
 
 ## What The Project Does
 
-The pipeline:
+At a high level, the repository has three responsibilities:
 
-1. Fetches jobs from `python-jobspy` sources such as LinkedIn and Indeed.
-2. Fetches additional remote jobs from Remotive.
-3. Merges all sources into one dataset.
-4. Removes low-quality rows and duplicates.
-5. Scores every job locally with deterministic rules.
-6. Optionally re-ranks the top jobs with Groq.
-7. Saves CSV outputs in `data/`.
-8. Optionally publishes both a technical sheet and a human-friendly view to Google Sheets.
+### 1. Job collection
 
-This makes the repository part scraper, part ranking engine, and part lightweight publishing pipeline.
+It fetches jobs from:
 
-## How It Works
+- `python-jobspy` sources like LinkedIn and Indeed
+- Remotive for remote-first opportunities
 
-### 1. Fetch
+### 2. Ranking
 
-The entrypoint is [main.py](/home/riccardo/Scrivania/job-agent/main.py).
+It ranks jobs in two stages:
 
-It first loads `config.yaml`, then starts two collection phases:
+- a local deterministic scoring engine
+- an optional AI re-ranking pass with Groq
 
-- `scraper/jobspy_fetch.py`
-  Queries JobSpy one site at a time to avoid one broken provider stopping the full run.
-  It normalizes fields like title, company, location, salary, source, apply URL, and description into a shared schema.
-- `scraper/remotive_fetch.py`
-  Calls the Remotive public API, strips HTML from descriptions, and converts remote jobs into the same schema used by JobSpy.
+### 3. Publishing
 
-The result of these two phases is written to:
+It saves the results locally and can publish them to Google Sheets in two formats:
 
-- `data/jobspy_raw_jobs.csv`
-- `data/remotive_raw_jobs.csv`
-- `data/combined_raw_jobs.csv`
+- a technical data sheet with full columns
+- a simplified human-friendly dashboard view
 
-### 2. Clean And Deduplicate
+## Main Features
 
-The cleaning logic lives in [scraper/dedup.py](/home/riccardo/Scrivania/job-agent/scraper/dedup.py).
+- multi-source job collection
+- shared normalized schema across sources
+- duplicate removal across platforms
+- recency filtering
+- local ranking with explainable scoring reasons
+- AI ranking with Groq for the top jobs
+- CSV outputs for debugging and analysis
+- Google Sheets publishing
+- scheduled execution with GitHub Actions
 
-It:
+## How The Pipeline Works
 
-- trims and normalizes text fields
-- removes low-quality rows that do not have enough useful information
-- keeps only recent jobs when `date_posted` can be parsed
-- keeps jobs with unknown dates instead of discarding them
-- removes duplicates by hashing `title + company + location`
+The runtime entrypoint is [main.py](/home/riccardo/Scrivania/job-agent/main.py).
 
-This phase produces:
+The current pipeline is organized into five phases.
 
-- `data/clean_jobs.csv`
+### Phase 1. Fetch jobs from JobSpy
 
-### 3. Local Ranking
+Implemented in [scraper/jobspy_fetch.py](/home/riccardo/Scrivania/job-agent/scraper/jobspy_fetch.py).
 
-The main ranking engine is [agent/local_ranker.py](/home/riccardo/Scrivania/job-agent/agent/local_ranker.py).
+This module:
 
-This is the most important logic in the project because it gives you a fast and free first-pass ranking without needing an LLM.
+- reads target roles, locations, and sources from `config.yaml`
+- queries one JobSpy source at a time
+- avoids one provider failure breaking the full run
+- normalizes provider output into a shared dataframe schema
 
-The local ranker scores jobs using:
+The normalized columns include:
+
+- `title`
+- `company`
+- `location`
+- `source`
+- `date_posted`
+- `apply_url`
+- `description`
+- `search_role`
+- `search_location`
+
+### Phase 2. Fetch jobs from Remotive
+
+Implemented in [scraper/remotive_fetch.py](/home/riccardo/Scrivania/job-agent/scraper/remotive_fetch.py).
+
+This module:
+
+- calls the Remotive API
+- searches multiple configured terms
+- strips HTML from descriptions
+- converts results to the same schema used by JobSpy
+
+### Phase 3. Clean and deduplicate
+
+Implemented in [scraper/dedup.py](/home/riccardo/Scrivania/job-agent/scraper/dedup.py).
+
+This step:
+
+- strips and normalizes text columns
+- removes low-quality rows
+- filters by job age using `hours_old`
+- keeps rows with unknown dates instead of aggressively discarding them
+- generates a stable deduplication key from `title + company + location`
+- drops duplicate jobs that appear across multiple platforms
+
+### Phase 4. Local ranking
+
+Implemented in [agent/local_ranker.py](/home/riccardo/Scrivania/job-agent/agent/local_ranker.py).
+
+This is the main scoring engine of the repository.
+
+It scores each job using transparent heuristics such as:
 
 - internship and stage signals
 - junior and entry-level signals
-- target role keywords
-- must-have and preferred skills
-- location match
-- freshness of the posting
-- source-specific bonuses
-- penalties for seniority or high experience requirements
-- penalties for missing internship signals when internships are required
+- role keyword relevance
+- must-have skills
+- preferred stack matches
+- nice-to-have technologies
+- location fit
+- freshness bonuses
+- source bonuses
+- seniority penalties
+- experience requirement penalties
+- penalties for missing internship signals
 
-The local ranker adds columns such as:
+The local ranker enriches each job with fields such as:
 
 - `local_rank`
 - `local_fit_score`
@@ -85,189 +146,29 @@ The local ranker adds columns such as:
 - `experience_required_years`
 - `local_score_reasons`
 
-This phase writes:
+### Phase 5. AI re-ranking with Groq
 
-- `data/ranked_jobs_local.csv`
+Implemented in [agent/groq_ranker.py](/home/riccardo/Scrivania/job-agent/agent/groq_ranker.py).
 
-### 4. AI Re-Ranking With Groq
+This stage is optional and controlled by `config.yaml`.
 
-The second ranking layer is [agent/groq_ranker.py](/home/riccardo/Scrivania/job-agent/agent/groq_ranker.py).
+It:
 
-This module does not replace local ranking. It refines it.
+- loads `GROQ_API_KEY`
+- converts jobs into a compact format
+- sends batches to Groq instead of one long request per full row
+- returns `ai_fit_score`, `ai_bucket`, and `ai_reason`
+- falls back to the local score if an AI batch fails
 
-Important details:
-
-- it loads `GROQ_API_KEY` from the environment
-- it batches jobs to reduce API calls
-- it sends a compact version of each job, not the full raw row
-- it combines the AI score with the local score
-- it falls back to the local score if a Groq batch fails
-
-The final score is computed as:
-
-- `65% ai_fit_score`
-- `35% local_fit_score`
-
-This produces the final output:
-
-- `data/ranked_jobs.csv`
-
-### 5. Publish To Google Sheets
-
-Publishing is handled by [output/sheets_writer.py](/home/riccardo/Scrivania/job-agent/output/sheets_writer.py) and [scripts/upload_ranked_csv_to_sheets.py](/home/riccardo/Scrivania/job-agent/scripts/upload_ranked_csv_to_sheets.py).
-
-The publisher:
-
-- authenticates with a Google service account
-- opens the spreadsheet using `GOOGLE_SHEET_ID`
-- writes a full technical worksheet
-- writes a simplified dashboard worksheet
-- applies formatting, column widths, and score coloring
-
-The simplified view contains:
-
-- `Rank`
-- `Score`
-- `Company`
-- `Place`
-- `Role`
-- `Description`
-- `Link`
-
-## Repository Structure
+The final score is computed in code as:
 
 ```text
-job-agent/
-├── agent/
-│   ├── groq_ranker.py
-│   ├── local_ranker.py
-│   ├── cv_parser.py
-│   ├── scorer.py
-│   ├── cv_analyser.py
-│   └── bullet_gen.py
-├── output/
-│   └── sheets_writer.py
-├── scraper/
-│   ├── dedup.py
-│   ├── jobspy_fetch.py
-│   └── remotive_fetch.py
-├── scripts/
-│   └── upload_ranked_csv_to_sheets.py
-├── .github/
-│   └── workflows/
-│       └── publish.yml
-├── config.yaml
-├── main.py
-├── requirements.txt
-├── job-agent-mvp.md
-└── README.md
+final_score = 0.65 * ai_fit_score + 0.35 * local_fit_score
 ```
 
-## Active Modules vs Legacy Files
-
-The code currently used by the main pipeline is:
-
-- `main.py`
-- `scraper/jobspy_fetch.py`
-- `scraper/remotive_fetch.py`
-- `scraper/dedup.py`
-- `agent/local_ranker.py`
-- `agent/groq_ranker.py`
-- `output/sheets_writer.py`
-- `scripts/upload_ranked_csv_to_sheets.py`
-
-There are also older or partial files in `agent/`:
-
-- `agent/scorer.py`
-- `agent/cv_parser.py`
-- `agent/cv_analyser.py`
-- `agent/bullet_gen.py`
-- `job-agent-mvp.md`
-
-These reflect earlier MVP ideas. Right now, the production path in `main.py` does not call `scorer.py`, `cv_analyser.py`, or `bullet_gen.py`.
-
-## Configuration
-
-The project is driven by [config.yaml](/home/riccardo/Scrivania/job-agent/config.yaml).
-
-### `profile`
-
-Describes the candidate:
-
-- name
-- current level
-- target seniority
-
-### `search`
-
-Controls where and how jobs are fetched:
-
-- `roles`
-- `locations`
-- `jobspy_sites`
-- `country_indeed`
-- `results_per_source`
-- `hours_old`
-- `distance`
-- `linkedin_fetch_description`
-- `verbose`
-- `delay_seconds`
-
-### `preferences`
-
-Drives ranking:
-
-- `must_have_skills`
-- `preferred_stack`
-- `nice_to_have`
-- `exclusions`
-
-### `remotive`
-
-Controls the remote jobs source:
-
-- `enabled`
-- `search_terms`
-- `limit_per_search`
-- `delay_seconds`
-
-### `sheets`
-
-Controls worksheet names:
-
-- `worksheet_name`
-- `view_worksheet_name`
-
-### `ai_ranking`
-
-Controls Groq:
-
-- `enabled`
-- `model`
-- `batch_size`
-- `max_jobs_to_ai_rank`
-- `max_description_chars`
-- `max_output_tokens`
-- `delay_seconds`
-
-### `local_ranking`
-
-Controls heuristic scoring rules:
-
-- `enabled`
-- `strict_internship_terms`
-- `soft_entry_level_terms`
-- `require_internship_signal`
-- `no_internship_max_score`
-- `target_role_terms`
-- `bad_seniority_terms`
-
-Important:
-the current `config.yaml` uses `internship_terms`, while `agent/local_ranker.py` reads `strict_internship_terms`. That means the configured list is not fully controlling the runtime behavior yet. Right now the ranker falls back to its internal defaults unless you rename that config key or update the code.
+The final output is sorted and assigned `final_rank`.
 
 ## Data Flow
-
-The pipeline data flow is:
 
 ```text
 config.yaml
@@ -304,9 +205,251 @@ main.py
                              Google Sheets: data + view
 ```
 
+## Repository Structure
+
+```text
+job-agent/
+├── agent/
+│   ├── __init__.py
+│   ├── bullet_gen.py
+│   ├── cv_analyser.py
+│   ├── cv_parser.py
+│   ├── groq_ranker.py
+│   ├── local_ranker.py
+│   └── scorer.py
+├── docs/
+│   └── GITHUB_ACTIONS_PUBLISHING.md
+├── output/
+│   ├── __init__.py
+│   └── sheets_writer.py
+├── scraper/
+│   ├── __init__.py
+│   ├── dedup.py
+│   ├── jobspy_fetch.py
+│   └── remotive_fetch.py
+├── scripts/
+│   └── upload_ranked_csv_to_sheets.py
+├── .github/
+│   └── workflows/
+│       └── publish.yml
+├── .env.example
+├── config.yaml
+├── job-agent-mvp.md
+├── main.py
+├── requirements.txt
+└── README.md
+```
+
+## Active Runtime Path
+
+The current runtime path used by the project is:
+
+- [main.py](/home/riccardo/Scrivania/job-agent/main.py)
+- [scraper/jobspy_fetch.py](/home/riccardo/Scrivania/job-agent/scraper/jobspy_fetch.py)
+- [scraper/remotive_fetch.py](/home/riccardo/Scrivania/job-agent/scraper/remotive_fetch.py)
+- [scraper/dedup.py](/home/riccardo/Scrivania/job-agent/scraper/dedup.py)
+- [agent/local_ranker.py](/home/riccardo/Scrivania/job-agent/agent/local_ranker.py)
+- [agent/groq_ranker.py](/home/riccardo/Scrivania/job-agent/agent/groq_ranker.py)
+- [output/sheets_writer.py](/home/riccardo/Scrivania/job-agent/output/sheets_writer.py)
+- [scripts/upload_ranked_csv_to_sheets.py](/home/riccardo/Scrivania/job-agent/scripts/upload_ranked_csv_to_sheets.py)
+
+## Legacy Or Partial Modules
+
+There are also older or not-currently-used files in `agent/`:
+
+- [agent/scorer.py](/home/riccardo/Scrivania/job-agent/agent/scorer.py)
+- [agent/cv_parser.py](/home/riccardo/Scrivania/job-agent/agent/cv_parser.py)
+- [agent/cv_analyser.py](/home/riccardo/Scrivania/job-agent/agent/cv_analyser.py)
+- [agent/bullet_gen.py](/home/riccardo/Scrivania/job-agent/agent/bullet_gen.py)
+- [job-agent-mvp.md](/home/riccardo/Scrivania/job-agent/job-agent-mvp.md)
+
+These reflect an earlier MVP direction that included CV analysis and tailored bullet generation. The current `main.py` pipeline does not call those modules.
+
+## Configuration
+
+The repository is driven by [config.yaml](/home/riccardo/Scrivania/job-agent/config.yaml).
+
+The main sections are:
+
+### `profile`
+
+Describes the candidate:
+
+- name
+- current level
+- target seniority
+
+### `search`
+
+Controls fetching:
+
+- `roles`
+- `locations`
+- `jobspy_sites`
+- `country_indeed`
+- `results_per_source`
+- `hours_old`
+- `distance`
+- `linkedin_fetch_description`
+- `verbose`
+- `delay_seconds`
+
+### `preferences`
+
+Controls ranking preference signals:
+
+- `must_have_skills`
+- `preferred_stack`
+- `nice_to_have`
+- `exclusions`
+
+### `remotive`
+
+Controls Remotive collection:
+
+- `enabled`
+- `search_terms`
+- `limit_per_search`
+- `delay_seconds`
+
+### `scoring`
+
+Contains thresholds used for bucket interpretation in the broader project setup.
+
+### `paths`
+
+Controls local file locations such as:
+
+- `cv_path`
+- `output_dir`
+
+### `sheets`
+
+Controls Google Sheets worksheet names:
+
+- `worksheet_name`
+- `view_worksheet_name`
+
+### `ai_ranking`
+
+Controls Groq AI ranking:
+
+- `enabled`
+- `model`
+- `batch_size`
+- `max_jobs_to_ai_rank`
+- `max_description_chars`
+- `max_output_tokens`
+- `delay_seconds`
+
+### `local_ranking`
+
+Controls heuristic local ranking behavior:
+
+- `enabled`
+- `target_role_terms`
+- `bad_seniority_terms`
+
+The code in [agent/local_ranker.py](/home/riccardo/Scrivania/job-agent/agent/local_ranker.py) also supports:
+
+- `strict_internship_terms`
+- `soft_entry_level_terms`
+- `require_internship_signal`
+- `no_internship_max_score`
+
+Important note:
+the current `config.yaml` uses `internship_terms`, while `agent/local_ranker.py` reads `strict_internship_terms`. That means the configured internship list is not fully wired to the current runtime behavior yet unless the config key is renamed or the code is updated.
+
+## Output Files
+
+By default, generated files are written to `data/`.
+
+The main outputs are:
+
+- `jobspy_raw_jobs.csv`
+- `remotive_raw_jobs.csv`
+- `combined_raw_jobs.csv`
+- `clean_jobs.csv`
+- `ranked_jobs_local.csv`
+- `ranked_jobs.csv`
+
+These are useful for:
+
+- debugging
+- validating ranking rules
+- demonstrating the data pipeline in a portfolio
+- keeping a local archive of collected results
+
+## Google Sheets Publishing
+
+Publishing is handled by:
+
+- [output/sheets_writer.py](/home/riccardo/Scrivania/job-agent/output/sheets_writer.py)
+- [scripts/upload_ranked_csv_to_sheets.py](/home/riccardo/Scrivania/job-agent/scripts/upload_ranked_csv_to_sheets.py)
+
+The uploader reads `data/ranked_jobs.csv` and writes two worksheets:
+
+### Data worksheet
+
+A technical sheet with full scoring and metadata columns such as:
+
+- final scores
+- local scores
+- AI scores
+- ranking reasons
+- detected skills
+- source data
+- apply URL
+- description
+
+### View worksheet
+
+A simplified dashboard with:
+
+- `Rank`
+- `Score`
+- `Company`
+- `Place`
+- `Role`
+- `Description`
+- `Link`
+
+The writer also applies:
+
+- frozen header row
+- formatting
+- column widths
+- score-based coloring
+
+## Environment Variables
+
+The project uses environment variables for secrets and external integrations.
+
+The main ones are:
+
+- `GROQ_API_KEY`
+- `GOOGLE_SHEET_ID`
+- `GOOGLE_CREDENTIALS_JSON`
+- `GOOGLE_CREDENTIALS_FILE`
+
+An example template is available in [.env.example](/home/riccardo/Scrivania/job-agent/.env.example).
+
+### What each variable is for
+
+- `GROQ_API_KEY`
+  Required only if AI ranking is enabled.
+- `GOOGLE_SHEET_ID`
+  Required for Google Sheets publishing.
+- `GOOGLE_CREDENTIALS_JSON`
+  Recommended in GitHub Actions.
+- `GOOGLE_CREDENTIALS_FILE`
+  Useful for local development when using a service account JSON file on disk.
+
 ## Requirements
 
-The Python dependencies are listed in [requirements.txt](/home/riccardo/Scrivania/job-agent/requirements.txt):
+The project dependencies are listed in [requirements.txt](/home/riccardo/Scrivania/job-agent/requirements.txt).
+
+Main libraries:
 
 - `pandas`
 - `pyyaml`
@@ -320,107 +463,159 @@ The Python dependencies are listed in [requirements.txt](/home/riccardo/Scrivani
 - `tenacity`
 - `python-jobspy`
 
-## Environment Variables
+## Local Setup
 
-For local execution and GitHub Actions, the important variables are:
+### 1. Clone the repository
 
-- `GROQ_API_KEY`
-  Required when `ai_ranking.enabled: true`.
-- `GOOGLE_SHEET_ID`
-  Required when publishing to Google Sheets.
-- `GOOGLE_CREDENTIALS_JSON`
-  Recommended for GitHub Actions.
-- `GOOGLE_CREDENTIALS_FILE`
-  Useful for local development instead of JSON-in-env.
+```bash
+git clone <your-repo-url>
+cd job-agent
+```
 
-An example file is provided in [.env.example](/home/riccardo/Scrivania/job-agent/.env.example).
-
-## How To Run The Project Locally
-
-### 1. Install dependencies
+### 2. Create a virtual environment
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure the project
+### 4. Configure the project
 
-- update `config.yaml`
-- add your secrets to `.env` or export them in your shell
+- update `config.yaml` for your target roles, locations, and preferences
+- create a local `.env` file or export the needed environment variables
+- set up Google Sheets credentials if you want publishing
 
-### 3. Run the pipeline
+### 5. Run the pipeline
 
 ```bash
 python main.py
 ```
 
-### 4. Publish the ranked CSV to Google Sheets
+### 6. Upload the final CSV to Google Sheets
 
 ```bash
 python scripts/upload_ranked_csv_to_sheets.py
 ```
 
-## Output Files
+## GitHub Actions Automation
 
-The default output directory is `data/`.
+The repository includes [publish.yml](/home/riccardo/Scrivania/job-agent/.github/workflows/publish.yml).
 
-Main generated files:
+This workflow:
 
-- `jobspy_raw_jobs.csv`
-- `remotive_raw_jobs.csv`
-- `combined_raw_jobs.csv`
-- `clean_jobs.csv`
-- `ranked_jobs_local.csv`
-- `ranked_jobs.csv`
+- checks out the repo
+- installs Python and dependencies
+- runs the pipeline
+- uploads the ranked results to Google Sheets
+- stores generated CSV files as artifacts
 
-These files are useful both for debugging and for showing the project as a data pipeline in a portfolio context.
+### Workflow triggers
 
-## GitHub Actions Publication
+- manual trigger through `workflow_dispatch`
+- scheduled daily trigger through cron
 
-This repository now includes [.github/workflows/publish.yml](/home/riccardo/Scrivania/job-agent/.github/workflows/publish.yml).
+The current workflow schedule is:
 
-The workflow:
+```text
+0 6 * * *
+```
 
-- can be started manually with `workflow_dispatch`
-- can run automatically on a daily schedule
-- installs dependencies
-- runs `python main.py`
-- runs `python scripts/upload_ranked_csv_to_sheets.py`
-- uploads the generated CSV files as GitHub Actions artifacts
+GitHub Actions cron uses UTC.
 
 ### Required GitHub Secrets
 
-Add these in `Settings -> Secrets and variables -> Actions`:
+To run the workflow successfully, add these repository secrets:
 
 - `GROQ_API_KEY`
 - `GOOGLE_SHEET_ID`
 - `GOOGLE_CREDENTIALS_JSON`
 
-If you disable AI ranking in `config.yaml`, `GROQ_API_KEY` is no longer needed for the pipeline itself.
+If AI ranking is disabled in `config.yaml`, the pipeline itself does not need `GROQ_API_KEY`.
 
-## Publishing Notes
+For a step-by-step workflow guide, see [docs/GITHUB_ACTIONS_PUBLISHING.md](/home/riccardo/Scrivania/job-agent/docs/GITHUB_ACTIONS_PUBLISHING.md).
 
-If your goal is to present this project publicly, the strongest story is:
+## Google Sheets Setup Summary
 
-- it solves a real personal workflow problem
-- it combines scraping, cleaning, ranking, LLM re-ranking, and reporting
-- it has a clear separation between collection, ranking, and publishing
-- it can run unattended with GitHub Actions
+To enable publication:
 
-That makes it a good portfolio project because it is both understandable and operational.
+1. create a Google Cloud project
+2. enable Google Sheets API and Google Drive API
+3. create a service account
+4. download the JSON key
+5. share your spreadsheet with the service account email
+6. store the spreadsheet ID in `GOOGLE_SHEET_ID`
+7. store the JSON key in `GOOGLE_CREDENTIALS_JSON` or point to it via `GOOGLE_CREDENTIALS_FILE`
+
+## What Makes This Project Useful In A Portfolio
+
+This repository is a good portfolio project because it combines:
+
+- web data collection
+- schema normalization
+- data cleaning
+- heuristic ranking
+- LLM integration
+- reporting and dashboard publication
+- automation through CI/CD
+
+It is also easy to explain to interviewers because the input, pipeline, and output are concrete and visible.
+
+## Current Limitations
+
+The current implementation works well as a practical personal pipeline, but there are some known limitations:
+
+- external scraping sources may fail or change behavior
+- ranking logic is tuned to one candidate profile
+- some older modules remain in the repo even though they are not used
+- there are currently no automated tests in the repository
+- the internship config key naming is not fully aligned with the local ranker
+- GitHub Actions success depends on valid external secrets and API availability
 
 ## Recommended Next Improvements
 
-The current repository is already useful, but these are the next logical improvements:
+The most valuable next steps would be:
 
-1. Add tests for deduplication and local ranking rules.
-2. Make all ranking thresholds fully configurable in `config.yaml`.
-3. Remove or archive legacy MVP modules that are no longer part of the runtime path.
-4. Add a small diagram or screenshot of the Google Sheets dashboard.
-5. Add a pinned example dataset for demo purposes when real scraping is unavailable.
+1. add automated tests for deduplication and ranking
+2. align `config.yaml` and `local_ranker.py` key names
+3. remove or archive unused MVP modules
+4. add screenshots of the Google Sheets dashboard
+5. add sample data for demo runs
+6. make more ranking parameters configurable without touching code
 
-## GitHub Actions Guide
+## Quick Command Reference
 
-For a step-by-step deployment checklist, see [docs/GITHUB_ACTIONS_PUBLISHING.md](/home/riccardo/Scrivania/job-agent/docs/GITHUB_ACTIONS_PUBLISHING.md).
+Run the full pipeline:
+
+```bash
+python main.py
+```
+
+Publish the ranked CSV to Sheets:
+
+```bash
+python scripts/upload_ranked_csv_to_sheets.py
+```
+
+Check that the Python files compile:
+
+```bash
+python -m compileall main.py agent scraper output scripts
+```
+
+## Summary
+
+`job-agent` is a small but complete job discovery system:
+
+- it gathers jobs from multiple sources
+- it filters and ranks them
+- it explains why jobs scored the way they did
+- it exports structured data
+- it can publish a readable dashboard automatically
+
+That makes it both useful in daily life and strong as a GitHub project because it demonstrates practical engineering, automation, and product thinking in one repository.

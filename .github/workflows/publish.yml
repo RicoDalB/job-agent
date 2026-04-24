@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Every night at 21:00 Europe/Rome time
     - cron: "0 21 * * *"
       timezone: "Europe/Rome"
 
@@ -16,11 +15,10 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
       GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-      GOOGLE_CREDENTIALS_FILE: ${{ runner.temp }}/google_credentials.json
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,15 +31,49 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Write Google credentials file
+      - name: Create Google credentials file
         run: |
-          printf '%s' "$GOOGLE_CREDENTIALS_JSON" > "$GOOGLE_CREDENTIALS_FILE"
+          echo "GOOGLE_CREDENTIALS_FILE=$RUNNER_TEMP/google_credentials.json" >> "$GITHUB_ENV"
+          printf '%s' "$GOOGLE_CREDENTIALS_JSON" > "$RUNNER_TEMP/google_credentials.json"
+
+      - name: Debug credentials metadata
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          print("GOOGLE_SHEET_ID exists:", bool(os.environ.get("GOOGLE_SHEET_ID")))
+          print("GOOGLE_CREDENTIALS_FILE:", os.environ.get("GOOGLE_CREDENTIALS_FILE"))
+
+          with open(os.environ["GOOGLE_CREDENTIALS_FILE"], "r") as f:
+              info = json.load(f)
+
+          print("Service account email:", info.get("client_email"))
+          print("Project ID:", info.get("project_id"))
+          PY
 
       - name: Run scraping and ranking pipeline
         run: |
           python main.py
 
-      - name: Upload ranked jobs to Google Sheets
+      - name: Show generated data files
+        run: |
+          ls -lah data || true
+          python - <<'PY'
+          import os
+          import pandas as pd
+
+          path = "data/ranked_jobs.csv"
+
+          if not os.path.exists(path):
+              raise FileNotFoundError("data/ranked_jobs.csv was not created")
+
+          df = pd.read_csv(path)
+          print("ranked_jobs.csv rows:", len(df))
+          print(df.head(3).to_string())
+          PY
+
+      - name: Upload ranked CSV to Google Sheets
         run: |
           python scripts/upload_ranked_csv_to_sheets.py
 

@@ -117,10 +117,10 @@ sheets:
 
 ai_ranking:
   enabled: true
-  model: "llama-3.3-70b-versatile"
+  model: "openai/gpt-oss-20b"
   batch_size: 10
   max_jobs_to_ai_rank: null
-  max_description_chars: 250
+  max_description_chars: 100
   max_output_tokens: 1200
   delay_seconds: 1
   max_jobs_to_ai_rank: 60

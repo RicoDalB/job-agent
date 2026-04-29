@@ -1,11 +1,11 @@
-name: Nightly Job Agent Publish
+# name: Nightly Job Agent Publish
 
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: "0 21 * * *"
-      timezone: "Europe/Rome"
+  # schedule:
+    # - cron: "0 21 * * *"
+      # timezone: "Europe/Rome"
 
 jobs:
   run-job-agent:
